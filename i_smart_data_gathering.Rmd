@@ -1,0 +1,806 @@
+---
+title: <center>**"I_SMART 전력사용 현황"**</center>
+output:
+  html_document:
+    smart: false
+---
+
+<br/>
+<center><h4>MSLEE(mosuklee@gmail.com) </h4></center>
+<center><h4>`r Sys.Date()` </h4></center>
+
+-----
+    
+<br/>
+  
+  
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE,message=FALSE,warning=FALSE,comment=NA,fig.align="center")
+```
+
+```{r engine='python', highlight=TRUE, echo=FALSE}
+```
+
+```{python echo=FALSE}
+from selenium import webdriver
+from bs4 import BeautifulSoup
+from urllib.request import urlopen
+import pandas as pd
+import re
+import urllib.parse
+import time
+
+################################
+# 고객 ID 및 PW를 입력합니다.  #
+################################
+
+user_id = "1316119427"
+user_pw = "swp2307585*"
+
+############################################
+# i-Smart에서 검토할 검토년도를 입력합니다.#
+############################################
+
+search_year = 2018
+jijum_no = "278"
+
+####################
+# 기상청 지점번호  #
+####################
+
+# [서울특별시]       [강원도]          [충청남도]       [전라남도]       [경상북도]        [경상남도(1)]
+# 관악산  : 116      강릉   : 105      금산   : 238     강진군 : 259     경주시  : 283     진주    : 192    
+# 서  울  : 108      대관령 : 100      보령   : 235     고흥   : 262     구미    : 279     창원    : 155
+# [부산광역시]       동해   : 106      부여   : 236     광양시 : 266     문경    : 273     통영    : 162
+# 부산    : 159      북강릉 : 104      서산   : 129     목포   : 165     봉화    : 271     함양군  : 264
+# [대구광역시]       북춘천 : 93       천안   : 232     무안   : 164     상주    : 137     합천    : 285
+# 대구    : 143      삼척   : 214      홍성   : 177     보성군 : 258     안동    : 136     [제주도]
+# 대구(기): 176      속초   : 90       [전라북도]       순천   : 174     영덕    : 277     고산    : 285
+# [인천광역시]       영월   : 121      고창   : 172     여수   : 168     영주    : 272     서귀포  : 189
+# 강화    : 201      원주   : 114      고창군 : 251     영광군 : 252     영천    : 281     성산    : 188
+# 백령도  : 102      인제   : 211      군산   : 140     완도   : 170     울릉도  : 115     성산    : 187
+# 인천    : 112      정선군 : 217      남원   : 247     장흥   : 260     울진    : 130     성산포  : 265
+# [광주광역시]       철원   : 95       부안   : 243     주암   : 256     의성    : 278
+# 광주    : 156      춘천   : 101      순창군 : 254     진도   : 175     청송군  : 276     
+# [대전광역시]       태백   : 216      임실   : 244     (첨찰산)         포항    : 138
+# 대전    : 133      홍천   : 212      장수   : 248     진도군 : 268     [경상남도]
+# [울산광역시]       [충청북도]        전주   : 146     해남   : 261     거재    : 294
+# 울산    : 152      보은   : 226      정읍   : 245     흑산도 : 169     거창    : 284
+# [경기도]           제천   : 221                                        김해시  : 253
+# 동두천  : 98       청주   : 131                                        남해    : 295
+# 수원    : 119      추풍령 : 135                                        밀양    : 288
+# 양평    : 202      충주   : 127                                        북창원  : 255 
+# 이천    : 203                                                          산청    : 289
+# 파주    : 99                                                           양산시  : 257 
+#                                                                        의령군  : 263 
+
+
+```
+
+```{python echo=FALSE}
+# i-SMART에 Log-In 
+
+# login 하고자 하는 login page를 url에 저장한다. 
+url = "https://pccs.kepco.co.kr/iSmart/jsp/cm/login/main.jsp"
+
+#C rome driver를 가상브라우져에 뛰우기 -----(1)
+browser = webdriver.Chrome ("C:/webdriver/chromedriver")
+
+# 3초 대기하기 ----(2)
+browser.implicitly_wait(3)
+
+# 로그인하기   ---- (3)
+browser.get(url)
+element_id = browser.find_element_by_name('userId')
+element_id.clear()
+element_id.send_keys(user_id)
+element_pw = browser.find_element_by_name('password')
+element_pw.clear()
+element_pw.send_keys(user_pw)
+
+#버튼누르기
+browser.find_element_by_xpath('//*[@id="contents_main"]/div/form/div[1]/div[2]/input').click()
+```
+
+```{python echo=FALSE}
+# 고객명을 추출합니다.
+
+url="https://pccs.kepco.co.kr/iSmart/pccs/usage/getGlobalUsageStats.do"
+browser.get(url)
+pre_elem = browser.find_element_by_class_name("user_infor")
+client_name = pre_elem.find_element_by_tag_name("strong")
+client_name = client_name.text
+```
+
+```{python echo=FALSE}
+# 고객정보를 추출합니다.
+ 
+url = "https://pccs.kepco.co.kr/iSmart/cm/login/readEquip.do?flag=AB" 
+browser.get(url)
+html = browser.page_source
+
+#가상브라우져에서 해당  Html파일을 추출한다.
+customer_info = pd.read_html(html,header=0)
+customer_info = pd.DataFrame(customer_info[0])
+
+customer_info.columns = ["remarks","info","1","2"]
+customer_info = customer_info.drop(["1", "2"], axis=1)
+
+```
+
+```{python echo=FALSE}
+# i-smart에서 전력단가를 추출합니다.
+url = "https://pccs.kepco.co.kr/iSmart/pccs/simulation/readChargeSimulation.do" 
+browser.get(url)
+html = browser.page_source
+
+#가상브라우져에서 해당  Html파일을 추출한다.
+unit_price = pd.read_html(html,header=0)
+unit_price = pd.DataFrame(unit_price[1])
+unit_price.columns = ["summer","intermid","winter","1","2","3","4","5","6","7","8","9"]
+unit_price = unit_price.drop(["1","2","3","4","5","6","7","8","9"], axis=1)
+unit_price = unit_price.drop([0,1,6], axis=0)
+```
+
+```{python echo=FALSE}
+# 일 최대전력을 추출합니다.
+
+import urllib.parse
+
+data_15_pday = pd.DataFrame(columns=("day_kwh",))
+month_day = [31,28,31,30,31,30,31,31,30,31,30,31]
+
+i = 0
+j = 0
+for month in month_day:
+    i=i+1
+    url = "https://pccs.kepco.co.kr/iSmart/pccs/usage/readTrendDayList.do" 
+    values = {
+              "day": month,
+              "month": str(i),
+              "searchType": "max_qkwh",
+              "year" : str(search_year)
+              }
+    params =  urllib.parse.urlencode(values)
+    url = url + "?"+params
+    browser.get(url)
+    html = browser.page_source
+    #가상브라우져에서 해당  Html파일을 추출한다.
+    data_15 = pd.read_html(html,header=0)
+      
+    data_15_1 = pd.DataFrame(data_15[1])
+    data_15_2 = pd.DataFrame(data_15[2])
+    data_15 = pd.concat([data_15_1, data_15_2], axis=0)   
+    data_15.columns = ["day","day_kwh","p_day_kw"]
+    data_15 = data_15.drop(['day', 'p_day_kw'], axis=1)
+    data_15.columns = [i]
+    data_15 = data_15.reset_index(drop=True)  # data frame을 합치기 위해서는 index가 같아야 합쳐진다.
+ 
+ # 각각의 월별 Dataframe의 Column을 합친다.
+   
+    if i< 2 :
+        data_15_pday = data_15[0:]
+        
+    if i==2 :
+        data_temp = pd.DataFrame([0,0])
+        data_temp.columns = [i]        
+        data_15 = pd.concat([data_15, data_temp], axis=0)
+        data_15 = data_15.reset_index(drop=True)
+        data_15_pday = pd.concat([data_15_pday, data_15], axis=1)      
+        #print("i=", i)
+    else :
+        if i < 2 :
+            data_15_pday = data_15[0:]
+        else :
+            data_15_pday = pd.concat([data_15_pday, data_15[0:]], axis=1)
+        #print("i=",i)
+
+data_15_pday.fillna(0,inplace=True)
+
+data_15_pday = data_15_pday.drop(data_15_pday.index[31])
+
+data_15_pday = data_15_pday.apply(pd.to_numeric,errors='innore') # 데이터 frame의 object로 일부 저장된 부분을 숫자로 바꾼다. 
+
+# Graph를 그리기 위해 DataFrame을 일렬로 세운다.
+data_15_pday_graph = data_15_pday[1]
+for i in range(2,13) :
+    data_15_pday_graph = pd.concat([data_15_pday_graph, data_15_pday[i]], axis=0)
+
+data_15_pday_graph = data_15_pday_graph.reset_index(drop=True)
+  
+
+# data를 csv로 저장한다.
+outputfile = './data/temp_graphic1.csv'
+data_15_pday_graph.to_csv(outputfile, encoding='UTF-8', index=False)
+
+# user Information을 저장한다.
+user_info = pd.DataFrame(["",""])
+user_info[0][0] = user_id
+user_info[0][1] = search_year
+
+outputfile = './data/user_info.csv'
+user_info.to_csv(outputfile, encoding='UTF-8', index=False)
+
+```
+
+
+```{python echo=FALSE}
+# 계약전력 및 발전가능량을 추출합니다.
+
+max_power = float(customer_info["info"][0][0:-2])
+exp_gen = data_15_pday_graph.max() - max_power*0.3
+```
+
+```{python echo=FALSE}
+#기술통계분석
+
+desc=data_15_pday_graph.describe()
+```
+
+```{python echo=FALSE}
+# 일간전력 사용량을 추출합니다.
+
+i = 0
+j = 0
+for month in month_day:
+    i=i+1
+    url = "https://pccs.kepco.co.kr/iSmart/pccs/usage/readTrendDayList.do" 
+    values = {
+              "day": month,
+              "month": str(i),
+              "searchType": "qkwh_avb",
+              "year" : str(search_year)
+              }
+    params =  urllib.parse.urlencode(values)
+    url = url + "?"+params
+    browser.get(url)
+    html = browser.page_source
+    #가상브라우져에서 해당  Html파일을 추출한다.
+    data_15 = pd.read_html(html,header=0)
+
+#    data_15 = pd.DataFrame(data_15[1])
+    data_15_1 = pd.DataFrame(data_15[1])
+    data_15_2 = pd.DataFrame(data_15[2])
+    data_15 = pd.concat([data_15_1, data_15_2], axis=0)   
+    data_15.columns = ["day","day_kwh","p_day_kw"]
+    data_15 = data_15.drop(['day', 'p_day_kw'], axis=1)
+    data_15.columns = [i]
+    data_15 = data_15.reset_index(drop=True)  # data frame을 합치기 위해서는 index가 같아야 합쳐진다.
+    
+ # 각각의 월별 Dataframe의 Column을 합친다.
+   
+    if i< 2 :
+        data_15_kwday = data_15
+        
+    if i==2 :
+        data_temp = pd.DataFrame([0,0])
+        data_temp.columns = [i]        
+        data_15 = pd.concat([data_15, data_temp], axis=0)
+        data_15 = data_15.reset_index(drop=True)
+        data_15_kwday = pd.concat([data_15_kwday, data_15], axis=1)      
+        #print("i=", i)
+    else :
+        if i < 2 :
+            data_15_kwday = data_15
+        else :
+            data_15_kwday = pd.concat([data_15_kwday, data_15], axis=1)
+        #print("i=",i)
+
+data_15_kwday.fillna(0,inplace=True)        
+data_15_kwday = data_15_kwday.drop(data_15_kwday.index[31])
+data_15_kwday = data_15_kwday.apply(pd.to_numeric,errors='innore') # 데이터 frame의 object로 일부 저장된 부분을 숫자로 바꾼다. 
+```
+
+```{python echo=FALSE}
+#월간전력사용금액
+
+url = "https://pccs.kepco.co.kr/iSmart/pccs/charge/realCostInfoByMonthChart.do" 
+values = {
+          "excel": 'false' ,
+          "month": str(12),
+          "year" : str(search_year)
+          }
+params =  urllib.parse.urlencode(values)
+url = url + "?"+params
+browser.get(url)
+html = browser.page_source
+
+#가상브라우져에서 해당  Html파일을 추출한다.
+data_mp = pd.read_html(html,header=0)   # data_mp : 월간 전기사용금액
+data_mp = pd.DataFrame(data_mp[0])    
+data_mp = data_mp.T
+data_mp = data_mp[1:2]
+data_mp.columns = ["1","2","3","4","5","6","7","8","9","10","11","12"]
+```
+
+```{python echo=FALSE}
+# 요금적용전력
+
+url = "https://pccs.kepco.co.kr/iSmart/pccs/amr/readCharge.do"    
+values = {
+          "select" : 1,
+          "sel" : str(search_year)
+          }
+params =  urllib.parse.urlencode(values)
+url = url + "?"+params
+browser.get(url)
+html = browser.page_source
+
+#가상브라우져에서 해당  Html파일을 추출한다.
+data_mkw = pd.read_html(html,header=0)   # data_mp : 요금적용 전력
+
+data_mkw = pd.DataFrame(data_mkw[0],index = [1,2,3,4,5,6,7,8,9,10,11,12])
+data_mkw.sort_index(inplace=True,ascending=False)
+data_mkw = data_mkw.T
+data_mkw = data_mkw[2:3]
+data_mkw.columns = ["1","2","3","4","5","6","7","8","9","10","11","12"]
+```
+
+```{python echo=FALSE}
+# 일간전력량
+
+i = 0
+j = 0
+months = ["01","02","03","04","05","06","07","08","09","10","11","12"]
+for month in months:
+    year_month = str(search_year) + month
+    i=i+1
+    url = "https://pccs.kepco.co.kr/iSmart/pccs/amr/readDetailCharge.do" 
+    values = {
+              "date": year_month
+              }
+    params =  urllib.parse.urlencode(values)
+    url = url + "?"+params
+    browser.get(url)
+    html = browser.page_source
+
+    #가상브라우져에서 해당  Html파일을 추출한다.
+    elec_grade = pd.read_html(html,header=0)
+    elec_grade = elec_grade[0][1:2]
+    elec_grade = pd.DataFrame(elec_grade)
+    elec_grade = elec_grade.drop(["구분","Unnamed: 4","Unnamed: 5","Unnamed: 6"], axis=1)
+    elec_grade.columns = ["중간부하","최대부하","경부하"]
+    elec_grade = elec_grade.reset_index(drop=True)  # data frame을 합치기 위해서는 index가 같아야 합쳐진다.
+
+    # 각각의 월별 Dataframe의 Column을 합친다.
+    if i< 2 :
+        elec_grade_kwday = elec_grade
+        #print("i=",i)
+    else :
+        elec_grade_kwday = pd.concat([elec_grade_kwday, elec_grade], axis=0)
+        #print("i=",i)
+elec_grade_kwday.fillna(0,inplace=True)        
+elec_grade_kwday = elec_grade_kwday.apply(pd.to_numeric,errors='innore') # 데이터 frame의 object로 일부 저장된 부분을 숫자로 바꾼다. 
+elec_grade_kwday = elec_grade_kwday.T
+elec_grade_kwday.columns = ["1","2","3","4","5","6","7","8","9","10","11","12"]
+
+browser.quit()
+```
+
+```{python echo=FALSE}
+# 기상자료를 추출합니다.
+
+jijum_no = "168_"+jijum_no
+jijum_no
+
+#C rome driver를 가상브라우져에 뛰우기 -----(1)
+browser = webdriver.Chrome ("C:/webdriver/chromedriver")
+# 3초 대기하기 ----(2)
+browser.implicitly_wait(3)
+
+url = "https://data.kma.go.kr/data/grnd/selectAsosRltmList.do"
+values = {
+          'pgmNo':'36',
+          'cmmnCdList':'F00501,F00502,F00503,F00512,F00513',
+          'dataFormCd':'F00513',
+          'dataReqstFileSn':"",
+          'dataReqstSn':"",
+          'dwldSetupPd':'0',
+          'elementCds':'SFC01048001,SFC01052001',
+          'elementGroupSn':"",
+          'elementGroupSns':'302,303',
+          'endDt':'20181215,2017',
+          'endHh':'00', 
+          'endMt':'12',
+          'endYear':search_year,
+          'firstLoading':'N',
+          'lrgClssCd':'SFC',
+          'mddlClssCd':'SFC01',
+          'menuNo':'32',
+          'pageIndex':'1',
+          'pageRowCount':'31',
+          'schListCnt':'100',
+          'schTotalCnt':'12',
+          'serviceSe':'F00102',
+          'startDt':'20181209,2017',
+          'startHh':'01',
+          'startMt':'01',
+          'startYear':search_year,
+          'stnIds':jijum_no,
+          'txtElementNm':'평균기온,평균상대습도',
+          'txtStnNm':"진주",
+          'upperCmmnCode':'F005'
+          }
+params =  urllib.parse.urlencode(values)
+url = url + "?"+params
+browser.get(url)
+time.sleep(5)
+
+html = browser.page_source
+
+#가상브라우져에서 해당  Html파일을 추출한다.
+weather_data = pd.read_html(html,header=0)
+weather_data = pd.DataFrame(weather_data[1])
+browser.quit()
+
+```
+
+```{python echo=FALSE}
+# Excel파일로 저장합니다.
+
+import xlsxwriter
+filename ='./data/%s_%s_elecdata_ismart.xlsx'%(user_id,search_year)
+workbook = xlsxwriter.Workbook(filename)
+worksheet = workbook.add_worksheet()
+
+# 최대수요량
+worksheet.write(0,0, "최대수요량")
+for col in range(0,12) :
+    worksheet.write(1,col+1, col+1)
+
+for row in range(0,31):
+    worksheet.write(row+2,0, row+1)
+    for col in range(0,12) :
+        worksheet.write(row+2,col+1, data_15_pday.iloc[row,col])
+        
+# 전력사용량
+worksheet.write(34,0, "일간전력사용량")
+for col in range(0,12) :
+    worksheet.write(35,col+1, col+1)
+    
+for row in range(0,31):
+    worksheet.write(row+36,0, row+1)
+    for col in range(0,12) :
+        worksheet.write(row+36,col+1, data_15_kwday.iloc[row,col])
+
+
+row = 68
+
+for col in range(0,12) :
+    worksheet.write(row+1,col+1, col+1)
+
+worksheet.write(row,0, '부하대별 전력사용량')
+
+worksheet.write(row+2,0, '중간부하')
+worksheet.write(row+3,0, '최대부하')
+worksheet.write(row+4,0, '경부하')
+
+for col in range(0,12) :
+    worksheet.write(row+2,col+1, elec_grade_kwday.iloc[0,col])
+    worksheet.write(row+3,col+1, elec_grade_kwday.iloc[1,col])
+    worksheet.write(row+4,col+1, elec_grade_kwday.iloc[2,col])
+    
+row = 76
+
+for col in range(0,12) :
+    worksheet.write(row-1,col+1, col+1)
+
+worksheet.write(row,0, '전력사용금액')
+for col in range(0,12) :
+    worksheet.write(row,col+1, data_mp.iloc[0,col])
+    
+row = 80
+for col in range(0,12) :
+    worksheet.write(row-1,col+1, col+1)
+
+worksheet.write(row,0, '요금적용전력')
+for col in range(0,12) :
+    worksheet.write(row,col+1, data_mkw.iloc[0,col])  
+    
+worksheet.write(83,0, "고객명")  
+worksheet.write(83,1, client_name[11:-1])
+worksheet.write(84,0, "고객번호")  
+worksheet.write(84,1, user_id)
+worksheet.write(85,0, "계약전력(KW)")  
+worksheet.write(85,1, customer_info["info"][0][0:-2])
+worksheet.write(86,0, "공급방식")  
+worksheet.write(86,1, customer_info["info"][2][:])
+worksheet.write(87,0, "계약종별")  
+worksheet.write(87,1, customer_info["info"][1][:])
+
+worksheet.write(90,0, "기본요금")  
+worksheet.write(90,1, unit_price['summer'][2])
+worksheet.write(91,0, "중부하")  
+worksheet.write(93,1, unit_price['summer'][3])
+worksheet.write(93,2, unit_price['intermid'][3])
+worksheet.write(93,3, unit_price['winter'][3])
+worksheet.write(92,0, "최대부하")  
+worksheet.write(92,1, unit_price['summer'][5])
+worksheet.write(92,2, unit_price['intermid'][5])
+worksheet.write(92,3, unit_price['winter'][5])
+worksheet.write(93,0, "경부하")  
+worksheet.write(91,1, unit_price['summer'][4])
+worksheet.write(91,2, unit_price['intermid'][4])
+worksheet.write(91,3, unit_price['winter'][4])
+
+worksheet.write(95,0, "검토년도")  
+worksheet.write(95,1, search_year)
+
+worksheet.write(97,0, "Peak 절감가능용량")  
+worksheet.write(97,1, exp_gen)
+
+row = 100
+for col in range(0,12) :
+    worksheet.write(row,col+1, col+1)
+
+worksheet.write(row,0, '기상자료')
+worksheet.write(row+1,0, '평균기온')
+worksheet.write(row+2,0, '상대습도')
+
+
+worksheet.write(row+1,1,  weather_data.iloc[0,2])
+worksheet.write(row+1,2,  weather_data.iloc[1,2])
+worksheet.write(row+1,3,  weather_data.iloc[2,2])
+worksheet.write(row+1,4,  weather_data.iloc[3,2])
+worksheet.write(row+1,5,  weather_data.iloc[4,2])
+worksheet.write(row+1,6,  weather_data.iloc[5,2])
+worksheet.write(row+1,7,  weather_data.iloc[6,2])
+worksheet.write(row+1,8,  weather_data.iloc[7,2])
+worksheet.write(row+1,9,  weather_data.iloc[8,2])
+worksheet.write(row+1,10,  weather_data.iloc[9,2])
+worksheet.write(row+1,11,  weather_data.iloc[10,2])
+worksheet.write(row+1,12,  weather_data.iloc[11,2])
+
+worksheet.write(row+2,1,  weather_data.iloc[0,3])
+worksheet.write(row+2,2,  weather_data.iloc[1,3])
+worksheet.write(row+2,3,  weather_data.iloc[2,3])
+worksheet.write(row+2,4,  weather_data.iloc[3,3])
+worksheet.write(row+2,5,  weather_data.iloc[4,3])
+worksheet.write(row+2,6,  weather_data.iloc[5,3])
+worksheet.write(row+2,7,  weather_data.iloc[6,3])
+worksheet.write(row+2,8,  weather_data.iloc[7,3])
+worksheet.write(row+2,9,  weather_data.iloc[8,3])
+worksheet.write(row+2,10,  weather_data.iloc[9,3])
+worksheet.write(row+2,11,  weather_data.iloc[10,3])
+worksheet.write(row+2,12,  weather_data.iloc[11,3])
+    
+workbook.close()
+```
+
+
+```{r}
+# 최대수요량을 읽는다.
+temp_graphic1 <- read.table("./data/temp_graphic1.csv", sep=",",header= FALSE)
+temp_user_info <- read.table("./data/user_info.csv", sep=",",header= FALSE,colClasses = c("character"))
+
+#계약전력을 추출한다.
+#install.packages("readxl")
+library("readxl")
+
+client_id <- temp_user_info[2,1]
+report_year <- temp_user_info[3,1]
+file_name0 <- paste0("./data/")
+file_name1 <- paste0(client_id,"_",report_year,"_")
+file_name2 <- "elecdata_ismart.xlsx"
+file_name <- paste0(file_name0,file_name1,file_name2)
+
+client_info_temp <- read_excel(file_name,col_types = c("text"), range = "B84:D96",col_names = FALSE)
+
+```
+
+
+##**1. 고객정보**
+  
+####**1) 계약정보**
+
+```{r}
+
+client_name <- client_info_temp[1,1]
+max_power <- as.numeric(client_info_temp[3,1])
+power_voltage <- client_info_temp[4,1]
+contract_grade <- client_info_temp[5,1]
+
+```
+
+  구    분         |       계약내역                |       비고
+-------------------|-------------------------------|--------------------
+   고객명          | `r client_name`               |    
+   계약전력        | `r format(max_power,0)`(kW)   |    
+   공급전압        | `r power_voltage`             |    
+   계약등급        | `r contract_grade`            |    
+
+<br/>
+
+
+
+
+####**2) 계약단가**  
+
+```{r}
+
+# 부하별 전력단가
+mi_summer <- as.numeric(client_info_temp[9,1])
+mi_intermid <- as.numeric(client_info_temp[9,2])
+mi_winter <- as.numeric(client_info_temp[9,3])
+mx_summer <- as.numeric(client_info_temp[10,1])
+mx_intermid <- as.numeric(client_info_temp[10,2])
+mx_winter <- as.numeric(client_info_temp[10,3])
+lt_summer <- as.numeric(client_info_temp[11,1])
+lt_intermid <- as.numeric(client_info_temp[11,2])
+lt_winter <- as.numeric(client_info_temp[11,3])
+
+# 기본요금 단가
+base_price <- as.numeric(client_info_temp[8,1])
+
+```
+  
+  구    분        |       중간부하                |       최대부하                |    경부하
+------------------|-------------------------------|-------------------------------|-------------------------------   
+  여름철          | `r mi_summer` (원/kW)         | `r mx_summer` (원/kW)         | `r lt_summer` (원/kW)
+  간절기          | `r mi_intermid` (원/kW)       | `r mx_intermid` (원/kW)       | `r lt_intermid` (원/kW)
+  겨울철          | `r mi_winter` (원/kW)         | `r mx_winter` (원/kW)         | `r lt_winter` (원/kW) 
+
+  
+<br/>
+
+####**3) 기타** 
+```{r}
+
+#[INPUT]==========================================
+inplant_consumption = 2.5/100
+power_fund = 3.7/100
+#=================================================
+
+```
+
+  구    분         |       요율                        |       비고
+-------------------|-----------------------------------|--------------------
+   전력기금요율    | `r power_fund*100` (%)            |  
+   검토기준년도    | `r report_year`년                 |
+  
+<br/>  
+
+##**2. 전력사용 DATA**
+  
+####**1) 최대수요량**
+
+
+```{r}
+file_name0 <- paste0("./data/")
+file_name1 <- paste0(client_id,"_",report_year,"_")
+file_name2 <- "elecdata_ismart.xlsx"
+file_name <- paste0(file_name0,file_name1,file_name2)
+elec_data_temp <- read_excel(file_name,col_types = c("text","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric"), range = "A2:M33",col_names = TRUE)
+
+library(knitr)
+temp_out <- elec_data_temp
+names(temp_out)[1] <- c(" ")
+kable(temp_out, digits = 1)
+```
+  
+<br/>
+
+####**2) 일간전력사용량**
+
+```{r}
+file_name0 <- paste0("./data/")
+file_name1 <- paste0(client_id,"_",report_year,"_")
+file_name2 <- "elecdata_ismart.xlsx"
+file_name <- paste0(file_name0,file_name1,file_name2)
+daily_elec_data_temp <- read_excel(file_name,col_types = c("text","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric"), range = "A36:M67",col_names = TRUE)
+
+temp_out <- daily_elec_data_temp
+names(temp_out)[1] <- c(" ")
+kable(temp_out, digits = 1)
+```
+  
+<br/>
+
+####**3) 부하대별 전력사용량**
+
+```{r}
+file_name0 <- paste0("./data/")
+file_name1 <- paste0(client_id,"_",report_year,"_")
+file_name2 <- "elecdata_ismart.xlsx"
+file_name <- paste0(file_name0,file_name1,file_name2)
+load_group_temp <- read_excel(file_name,col_types = c("text","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric"), range = "A70:M73",col_names = TRUE)
+
+temp_out <- load_group_temp
+names(temp_out)[1] <- c(" ")
+kable(temp_out, digits = 1)
+```
+  
+<br/>
+
+####**4) 월간전력사용금액(백만원)**
+
+```{r}
+file_name0 <- paste0("./data/")
+file_name1 <- paste0(client_id,"_",report_year,"_")
+file_name2 <- "elecdata_ismart.xlsx"
+file_name <- paste0(file_name0,file_name1,file_name2)
+monthly_elec_price_temp <- read_excel(file_name,col_types = c("numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric"), range = "B76:M77",col_names = TRUE)
+
+temp_out <- monthly_elec_price_temp/1000000
+kable(temp_out, digits = 1)
+```
+  
+<br/>
+
+####**5) 요금적용전력**
+
+```{r}
+file_name0 <- paste0("./data/")
+file_name1 <- paste0(client_id,"_",report_year,"_")
+file_name2 <- "elecdata_ismart.xlsx"
+file_name <- paste0(file_name0,file_name1,file_name2)
+peak_elec_temp <- read_excel(file_name,col_types = c("text","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric"), range = "A80:M81",col_names = TRUE)
+
+temp_out <- peak_elec_temp
+names(temp_out)[1] <- c(" ")
+kable(temp_out, digits = 1)
+```
+  
+<br/>
+
+
+##**3. 기상 DATA**
+  
+####**1) 월평균 외기온도 및 상대습도**
+
+```{r}
+file_name0 <- paste0("./data/")
+file_name1 <- paste0(client_id,"_",report_year,"_")
+file_name2 <- "elecdata_ismart.xlsx"
+file_name <- paste0(file_name0,file_name1,file_name2)
+peak_elec_temp <- read_excel(file_name,col_types = c("text","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric"), range = "A101:M103",col_names = TRUE)
+
+temp_out <- peak_elec_temp
+names(temp_out)[1] <- c(" ")
+kable(temp_out, digits = 1)
+```
+
+  
+<br/>
+
+##**4. 가스터빈 분석**
+  
+####**1) 전기사용현황 및 가스터빈 발전가능량 분석**
+```{r fig.width=10,fig.height=6}
+
+base_year_text <- paste0("기준년도 : ",report_year,"년")
+
+max_power <- round(as.numeric(client_info_temp[3,1]),1)
+max_power_text <- paste0("계약전력 (",max_power,"kW)")
+
+max_peak_power <- round(max(temp_graphic1),1)
+max_peak_power_text <- paste0("Max최대수요량 (",max_peak_power,"kW)")
+
+base_elec_power <- round(max_power*0.3,1)
+base_elec_power_text <- paste0("최소기본요금 (",base_elec_power,"kW)")
+
+avg_peak_power <- round(mean(t(temp_graphic1)),1)
+avg_peak_power_text <- paste0("평균수요량 (",avg_peak_power,"kW)")
+
+exp_gen <- round(max_peak_power - max_power*0.3,1)
+exp_gen_text <- paste0("피크절감가능량 : ",exp_gen,"kW")
+
+
+#그래프를 그린다.
+x_length <- length(t(temp_graphic1))
+x <- c(1:x_length)
+max_y <- as.numeric(client_info_temp[3,1])
+
+plot(x,t(temp_graphic1),ylim=c(0,max_y*1.05),xlim=c(0,length(x)),col="red",xlab="Day", ylab="최대수요량(kW)",axes=TRUE,type="l",panel.first = grid(nx = NA, ny = NULL))
+abline(h=max_power,col="magenta",lty=1)
+abline(h=max_peak_power,col="red",lty=2)
+abline(h=avg_peak_power,col="green",lty=2)
+abline(h=base_elec_power,col="blue",lty=2)
+legend(260, max_power*0.25, legend=c("최대수요량",max_power_text,max_peak_power_text,avg_peak_power_text,base_elec_power_text),
+       col=c("red", "magenta","red","green","blue"), lty=c(1,1,2,2,2), cex=0.8,
+       text.font=4, bg='white')
+text(30,max_power*0.95,labels = base_year_text,cex=1.1)
+text(300,max_power*0.95,labels = exp_gen_text,cex=1.1)
+
+```

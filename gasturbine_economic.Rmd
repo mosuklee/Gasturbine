@@ -1,0 +1,604 @@
+---
+title: <center>**GAS TURBINE 에너지절감량 분석**</center>
+output: 
+  html_document
+editor_options: 
+  chunk_output_type: inline
+---
+  
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE,message=FALSE,warning=FALSE,comment=NA,fig.align="center")
+```
+
+```{r}
+#[INPUT]==========================================
+
+client_id = "0923375616"
+report_year = "2017"
+
+#=================================================
+```
+
+```{r}
+#install.packages("readxl")
+library("readxl")
+file_name0 <- paste0("./data/")
+file_name1 <- paste0(client_id,"_",report_year,"_")
+file_name2 <- "energydata_ismart.xlsx"
+file_name <- paste0(file_name0,file_name1,file_name2)
+
+energydata_raw1 <- read_excel(file_name,col_types = c("text","text","text","text","text","text","text","text","text","text","text","text","text"), range = "A13:M32")
+
+#t(gt_energy_gen)
+```
+
+  
+<br/>
+<center><h3>**자가발전시스템**</h3></center>
+<center><h3>`r energydata_raw1[1:1,2:2]`</h3></center>
+<center><h4>(검토날짜 : `r Sys.Date()`)</h4></center>
+
+<br/>
+  
+-----
+  
+<br/>
+
+
+
+##**1. 입력자료**
+  
+####**1) 계약전력**
+  
+```{r}
+#[INPUT]==========================================
+
+
+contract_power <- as.numeric(energydata_raw1[3:3,2:2])
+#contract_power <- 9000
+
+power_voltage <- energydata_raw1[4:4,2:2]
+#power_voltage <- 15400
+
+contract_grade <- energydata_raw1[5:5,2:2]
+#contract_grade <- "산업용(을)고압A선택2"
+#=================================================
+
+```
+
+  구    분         |       계약내역                           |       비고
+-------------------|------------------------------------------|--------------------
+   계약전력        | `r format(contract_power,0)` (kW)        |    
+   공급전압        | `r power_voltage`                        |    
+   계약등급        | `r contract_grade`                       |    
+   최저기본요금    | `r format(contract_power*0.3,0)` (kW)    |    계약전력의 30%
+  
+<br/>
+
+####**2) 계약단가**  
+
+```{r}
+
+#[INPUT]==========================================
+# 부하별 전력단가
+mi_summer <- as.numeric(energydata_raw1[10:10,2:2])
+#mi_summer=109.0
+mi_intermid <- as.numeric(energydata_raw1[10:10,3:3])
+#mi_intermid = 78.6
+mi_winter <- as.numeric(energydata_raw1[10:10,4:4])
+#mi_winter = 109.2
+mx_summer <- as.numeric(energydata_raw1[11:11,2:2])
+#mx_summer = 191.1
+mx_intermid <- as.numeric(energydata_raw1[11:11,3:3])
+#mx_intermid = 109.3
+mx_winter <- as.numeric(energydata_raw1[11:11,4:4])
+#mx_winter = 166.7
+lt_summer <- as.numeric(energydata_raw1[12:12,2:2])
+#lt_summer = 56.1
+lt_intermid <- as.numeric(energydata_raw1[12:12,3:3])
+#lt_intermid = 56.1
+lt_winter <- as.numeric(energydata_raw1[12:12,4:4])
+#lt_winter = 63.1
+mi_time <- as.numeric(energydata_raw1[10:10,7:7])
+#mi_time = 8 # 중간부하 :  8시간
+mx_time <- as.numeric(energydata_raw1[11:11,7:7])
+#mx_time = 6 # 최대부하 :  6시간
+lt_time <- as.numeric(energydata_raw1[12:12,7:7])
+#lt_time = 0  #경 부 하 : 10시간
+
+# 기본요금 단가
+base_price <- as.numeric(energydata_raw1[9:9,2:2])
+#base_price = 8320
+#=================================================
+
+```
+  
+  구    분        |       중간부하                |       최대부하                |    경부하
+------------------|-------------------------------|-------------------------------|-------------------------------   
+  여름철          | `r mi_summer` (원/kW)         | `r mx_summer` (원/kW)         | `r lt_summer` (원/kW)
+  간절기          | `r mi_intermid` (원/kW)       | `r mx_intermid` (원/kW)       | `r lt_intermid` (원/kW)
+  겨울철          | `r mi_winter` (원/kW)         | `r mx_winter` (원/kW)         | `r lt_winter` (원/kW) 
+
+  
+<br/>
+
+####**3) 기타** 
+```{r}
+
+#[INPUT]==========================================
+inplant_consumption <- as.numeric(energydata_raw1[16:16,2:2])/100
+#inplant_consumption = 3.5/100
+power_fund <- as.numeric(energydata_raw1[17:17,2:2])/100
+#power_fund = 3.7/100
+#=================================================
+```
+
+  구    분         |       요율                        |       비고
+-------------------|-----------------------------------|--------------------
+   소내소비율      | `r inplant_consumption*100`(%)    |    
+   전력기금요율    | `r power_fund*100` (%)            |  
+   검토기준년도    | `r report_year`년                 |
+  
+<br/>  
+  
+##**2. 월간 부하대별 전력사용량 분석**  
+  
+####**1) 월간 부하대별 전력사용량**  
+```{r}
+
+file_name2 <- "elecdata_ismart.xlsx"
+file_name <- paste0(file_name0,file_name1,file_name2)
+
+
+# my_data <- read_excel("my_file.xlsx", sheet = "data")
+elecdata_raw <- read_excel(file_name)
+
+elec_data <- data.frame(elecdata_raw[2:32,2:13])
+names(elec_data) <- elecdata_raw[1:1,2:13]
+row.names(elec_data) <- c(1:31)
+
+elec_monthly_grade_purchase <- elecdata_raw[70:72,2:13]
+elec_monthly_grade_purchase <- data.frame(t(elec_monthly_grade_purchase))
+names(elec_monthly_grade_purchase) <- c("mi","mx","lt") 
+row.names(elec_monthly_grade_purchase) <- elecdata_raw[1:1,2:13]
+
+#install.packages("pander")
+library(pander)
+#pander::pandoc.table(smp_avg_monthly)
+#print(smp_avg_monthly)
+library(knitr)
+temp_out <-elec_monthly_grade_purchase
+names(elec_monthly_grade_purchase) <- c("중간","최대","경")
+kable(t(elec_monthly_grade_purchase), digits = 1)
+```
+  
+```{r fig.width=8,fig.height=4}
+stack <- elec_monthly_grade_purchase
+max_y <- as.numeric(max(as.matrix(stack[1])))+as.numeric(max(as.matrix(stack[2])))+as.numeric(max(as.matrix(stack[3])))
+barplot(t(as.matrix(stack)),ylim=c(0,max_y*1.3),xlim=c(0,13),border=TRUE,col=c("gray","lightgray","gray"),xlab="월", ylab="전력사용량(kWh)",main="월간 전력사용량",axes=TRUE,panel.first = grid(nx = NA, ny = NULL))
+abline(h=0,ylim=c(0,13))
+```
+
+#### **2) 월별 요금적용 전력**
+```{r}
+elec_monthly_grade_purchase <- elecdata_raw[80:80,2:13]
+elec_monthly_grade_purchase <- data.frame(t(elec_monthly_grade_purchase))
+names(elec_monthly_grade_purchase) <- c('peakload')
+row.names(elec_monthly_grade_purchase) <- elecdata_raw[1:1,2:13]
+
+temp_out <-elec_monthly_grade_purchase
+names(temp_out) <- c("요금적용전력")
+kable(t(temp_out), digits = 2)
+
+#t(elec_monthly_grade_purchase)
+```
+  
+
+```{r fig.width=8,fig.height=4}
+max_y <- as.numeric(max(as.matrix(elec_monthly_grade_purchase)))
+barplot(t(as.matrix(elec_monthly_grade_purchase)),ylim=c(0,max_y*1.3),xlim=c(0,13),col=c("lightgray"),xlab="월", ylab="요금적용전력(kW)",main="월별 요금적용 전력",axes=TRUE,panel.first = grid(nx = NA, ny = NULL))
+abline(h=0,ylim=c(0,13))
+```
+  
+#### **3) 월별 부하대별 전력단가**  
+```{r}
+temp1 <- c(mi_winter,mi_winter,mi_intermid,mi_intermid,mi_intermid,mi_summer,mi_summer,mi_summer,mi_intermid,mi_intermid,mi_winter,mi_winter)
+temp2 <- c(mx_winter,mx_winter,mx_intermid,mx_intermid,mx_intermid,mx_summer,mx_summer,mx_summer,mx_intermid,mx_intermid,mx_winter,mx_winter)
+temp3 <- c(lt_winter,lt_winter,lt_intermid,lt_intermid,lt_intermid,lt_summer,lt_summer,lt_summer,lt_intermid,lt_intermid,lt_winter,lt_winter)
+
+elec_unitprice <-data.frame(mi_uprice=temp1,mx_uprice=temp2,lt_uprice=temp3)
+row.names(elec_unitprice) <- elecdata_raw[1:1,2:13]
+
+temp_out <- elec_unitprice
+names(temp_out) <- c("중간","최대","경")
+kable(t(temp_out), digits = 2)
+```
+  
+```{r fig.width=9,fig.height=4}
+max_y <- as.numeric(max(as.matrix(elec_unitprice)))
+barplot(as.matrix(t(elec_unitprice)),beside=TRUE,ylim=c(0,max_y*1.3),xlim=c(0,46),col=c("lightgray","gray","lightgray"),xlab="월", ylab="전력단가(kWh)",main="월별 부하별 전력단가",axes=TRUE,panel.first = grid(nx = NA, ny = NULL))
+abline(h=0,ylim=c(0,46))
+```
+  
+## **3. 가스터빈 가동계획**  
+```{r}
+file_name2 <- "energydata_ismart.xlsx"
+file_name <- paste0(file_name0,file_name1,file_name2)
+
+energydata_raw <- read_excel(file_name,col_types = c("text","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric"))
+
+gt_energy_gen <- energydata_raw[2:10,2:13]
+gt_energy_gen <- data.frame(t(gt_energy_gen))
+names(gt_energy_gen) <- c("power_gen","steam_gen","fuel_consumpt","saturday","sunday","public_holiday","weekday","steam_unitprice","fuel_unitprice")
+row.names(gt_energy_gen) <- energydata_raw[1:1,2:13]
+
+#t(gt_energy_gen)
+```
+
+#### **1) 가스터빈 Sumulation Data**  
+```{r}
+#gt_energy_gen[1:12,1:3]
+
+temp_out <-gt_energy_gen[1:12,1:3]
+names(temp_out) <- c("발전출력(kW)","스팀생산량(T/H)","연료소비량(T/H)")
+kable(t(temp_out), digits = 2)
+
+```
+
+#### **2) 가스터빈 운전계획**    
+```{r}
+temp_out <-gt_energy_gen[1:12,4:7]
+names(temp_out) <- c("토요일","일요일","공휴일","평일")
+kable(t(temp_out), digits = 2)
+```
+  
+```{r fig.width=8,fig.height=4}
+stack <- gt_energy_gen[1:12,4:7]
+barplot(t(as.matrix(stack)),ylim=c(0,35),xlim=c(0,13),border=TRUE,col=c("gray","lightgray","gray","lightgray"),xlab="월", ylab="가동일수",main="월별 발전기 가동계획",axes=TRUE,panel.first = grid(nx = NA, ny = NULL))
+abline(h=0,ylim=c(0,13))
+```
+
+## **4. 에너지 단가**  
+```{r}
+temp_out <-gt_energy_gen[1:12,8:9]
+names(temp_out) <- c("스팀단가","연료단가")
+kable(t(temp_out), digits = 2)
+
+```
+  
+  
+<br/>
+
+## **5. 발전량 계산**  
+
+```{r}
+# 발전량 계산
+# 중간부하
+#temp1 <- gt_energy_gen$power_gen*mi_time*(gt_energy_gen$saturday+gt_energy_gen$weekday)
+temp1_1 <- gt_energy_gen$power_gen*mi_time*(gt_energy_gen$saturday) # 토요일 전력사용량 분석
+temp1_2 <- gt_energy_gen$power_gen*mi_time*(gt_energy_gen$sunday) # 일요일 전력사용량 분석
+temp1_3 <- gt_energy_gen$power_gen*mi_time*(gt_energy_gen$public_holiday) # 공휴일 전력사용량 분석
+temp1_4 <- gt_energy_gen$power_gen*mi_time*(gt_energy_gen$weekday) # 평일 전력사용량 분석
+temp1 <- temp1_1+temp1_2+temp1_3+temp1_4
+
+# 최대부하
+temp2_1 <- gt_energy_gen$power_gen*mx_time*(gt_energy_gen$saturday) # 토요일 전력사용량 분석
+temp2_2 <- gt_energy_gen$power_gen*mx_time*(gt_energy_gen$sunday) # 일요일 전력사용량 분석
+temp2_3 <- gt_energy_gen$power_gen*mx_time*(gt_energy_gen$public_holiday) # 공휴일 전력사용량 분석
+temp2_4 <- gt_energy_gen$power_gen*mx_time*(gt_energy_gen$weekday) # 평일 전력사용량 분석
+temp2 <- temp2_1+temp2_2+temp2_3+temp2_4 
+#temp2 <- gt_energy_gen$power_gen*mx_time*(gt_energy_gen$saturday+gt_energy_gen$weekday)
+
+#경부하
+temp3_1 <- gt_energy_gen$power_gen*lt_time*(gt_energy_gen$saturday) # 토요일 전력사용량 분석
+temp3_2 <- gt_energy_gen$power_gen*lt_time*(gt_energy_gen$sunday) # 일요일 전력사용량 분석
+temp3_3 <- gt_energy_gen$power_gen*lt_time*(gt_energy_gen$public_holiday) # 공휴일 전력사용량 분석
+temp3_4 <- gt_energy_gen$power_gen*lt_time*(gt_energy_gen$weekday) # 평일 전력사용량 분석
+temp3 <- temp3_1+temp3_2+temp3_3+temp3_4
+#temp3 <- gt_energy_gen$power_gen*lt_time*(gt_energy_gen$saturday+gt_energy_gen$weekday)
+
+# 발전량 합계
+temp4 <- temp1+temp2+temp3
+
+# 소내소비량 계산
+# 중간부하
+#temp5 <- temp1*inplant_consumption   
+temp5_1 <- temp1_1*inplant_consumption # 토요일
+temp5_2 <- temp1_2*inplant_consumption # 일요일
+temp5_3 <- temp1_3*inplant_consumption # 공휴일
+temp5_4 <- temp1_4*inplant_consumption # 평일
+temp5 <- temp5_1 + temp5_2 + temp5_3 + temp5_4
+
+# 최대부하
+#temp6 <- temp2*inplant_consumption
+temp6_1 <- temp2_1*inplant_consumption # 토요일
+temp6_2 <- temp2_2*inplant_consumption # 일요일
+temp6_3 <- temp2_3*inplant_consumption # 공휴일
+temp6_4 <- temp2_4*inplant_consumption # 평일
+temp6 <- temp6_1 + temp6_2 + temp6_3 + temp6_4
+
+# 경부하
+#temp7 <- temp3*inplant_consumption
+temp7_1 <- temp3_1*inplant_consumption # 토요일
+temp7_2 <- temp3_2*inplant_consumption # 일요일
+temp7_3 <- temp3_3*inplant_consumption # 공휴일
+temp7_4 <- temp3_4*inplant_consumption # 평일
+temp7 <- temp7_1 + temp7_2 + temp7_3 + temp7_4
+
+# 소내소비량 합계
+temp8 <- temp5+temp6+temp7
+
+# 유효발전량 계산
+# 중간부하
+#temp9 <- temp1-temp5  # 중간부하  
+temp9_1 <- temp1_1-temp5_1  # 토요일
+temp9_2 <- temp1_2-temp5_2  # 일요일
+temp9_3 <- temp1_3-temp5_3  # 공휴일
+temp9_4 <- temp1_4-temp5_4  # 평일
+temp9 <- temp9_1+temp9_2+temp9_3+temp9_4
+
+# 최대부하
+#temp10 <- temp2-temp6 # 최대부하
+temp10_1 <- temp2_1-temp6_1  # 토요일
+temp10_2 <- temp2_2-temp6_2  # 일요일
+temp10_3 <- temp2_3-temp6_3  # 공휴일
+temp10_4 <- temp2_4-temp6_4  # 평일
+temp10 <- temp10_1+temp10_2+temp10_3+temp10_4
+
+#temp11 <- temp3-temp7 # 경부하
+temp11_1 <- temp3_1-temp7_1  # 토요일
+temp11_2 <- temp3_2-temp7_2  # 일요일
+temp11_3 <- temp3_3-temp7_3  # 공휴일
+temp11_4 <- temp3_4-temp7_4  # 평일
+temp11 <- temp11_1+temp11_2+temp11_3+temp11_4
+
+# 유효발전량 합계
+temp12 <- temp9+temp10+temp11
+
+# 발전금액 계산
+# 중간부하
+#temp13 <- temp9 * elec_unitprice$mi_uprice
+temp13_1 <- temp9_1 * elec_unitprice$mi_uprice # 토요일
+temp13_2 <- temp9_2 * elec_unitprice$lt_uprice # 일요일 (경부하 시간대 적용)
+temp13_3 <- temp9_3 * elec_unitprice$lt_uprice # 공휴일 (경부하 시간대 적용)
+temp13_4 <- temp9_4 * elec_unitprice$mi_uprice # 평일
+temp13 <- temp13_1+temp13_2+temp13_3+temp13_4
+
+# 최대부하
+#temp14 <- temp10 * elec_unitprice$mx_uprice
+temp14_1 <- temp10_1 * elec_unitprice$mi_uprice # 토요일 (중간부하 시간대 적용)
+temp14_2 <- temp10_2 * elec_unitprice$lt_uprice # 일요일 (경부하 시간대 적용)
+temp14_3 <- temp10_3 * elec_unitprice$lt_uprice # 공휴일 (경부하 시간대 적용)
+temp14_4 <- temp10_4 * elec_unitprice$mx_uprice # 평일
+temp14 <- temp14_1+temp14_2+temp14_3+temp14_4
+
+# 경부하
+#temp15 <- temp11 * elec_unitprice$lt_uprice
+temp15_1 <- temp11_1 * elec_unitprice$lt_uprice # 토요일
+temp15_2 <- temp11_2 * elec_unitprice$lt_uprice # 일요일
+temp15_3 <- temp11_3 * elec_unitprice$lt_uprice # 공휴일
+temp15_4 <- temp11_4 * elec_unitprice$lt_uprice # 평일
+temp15 <- temp15_1+temp15_2+temp15_3+temp15_4
+
+# 유효발전금액 합계
+temp16 <- temp13 + temp14 + temp15
+
+# 기본요금 감축량 계산
+gt_energy_gen$power_gen1 <- min(gt_energy_gen$power_gen,na.rm=FALSE)
+
+# Peak 전력요금절감량 계산
+peak1 <- as.numeric(elecdata_raw[97:97,2:2])
+peak2 <- max(as.numeric(elecdata_raw[80:80,2:13]))-as.numeric(elecdata_raw[85:85,2:2])*0.3
+peak3 <- min(energydata_raw[2:2,2:13])
+gt_energy_gen$power_gen2 <- min(peak1,peak2,peak3)
+
+#gt_energy_gen$power_gen2 <- as.numeric(energydata_raw[19:19,2:2])
+temp17 <- gt_energy_gen$power_gen2 * (1-inplant_consumption) * base_price
+
+# 전력기금
+temp18 <- (temp16 + temp17) * power_fund
+# 스팀생산금액
+temp19 <- gt_energy_gen$steam_gen*(gt_energy_gen$saturday+gt_energy_gen$weekday+gt_energy_gen$sunday+gt_energy_gen$public_holiday)*(mi_time+mx_time+lt_time)
+
+elec_product <-data.frame(mi_load=temp1,mx_load=temp2,lt_load=temp3,tot_load=temp4,
+                          mi_consum_load=temp5,mx_consum_load=temp6,lt_consum_load=temp7,tot_consum_load=temp8,
+                          mi_eff_load=temp9,mx_eff_load=temp10,lt_eff_load=temp11,tot_eff_load=temp12,
+                          mi_elec_price=temp13,mx_elec_price=temp14,lt_elec_price=temp15,tot_elec_price=temp16,
+                          base_price_dec=temp17,elec_fund=temp18,
+                          steam_gen=temp19
+                          )
+row.names(elec_product) <- energydata_raw[1:1,2:13]
+#elec_product
+```
+#### **1) 월간 전력생산량 분석**
+```{r}
+temp_out <-elec_product[1:4]
+names(temp_out) <- c("중간부하","최대부하","경부하","합  계")
+kable(t(temp_out), digits = 2)
+
+#t(elec_product[1:4])
+```
+   
+```{r fig.width=8,fig.height=4}
+stack <- elec_product[1:3]
+max_y <- as.numeric(max(as.matrix(stack[1])))+as.numeric(max(as.matrix(stack[2])))+as.numeric(max(as.matrix(stack[3])))
+barplot(t(as.matrix(stack)),ylim=c(0,max_y*1.3),xlim=c(0,13),border=TRUE,col=c("gray","lightgray","gray"),xlab="월", ylab="전력 생산량(kWh)",main="월간 전력생산량",axes=TRUE,panel.first = grid(nx = NA, ny = NULL))
+abline(h=0,ylim=c(0,13))
+```
+
+
+#### **2) 월간 소내소비 전력량 분석**  
+```{r}
+temp_out <-elec_product[5:8]
+names(temp_out) <- c("중간부하","최대부하","경부하","합  계")
+kable(t(temp_out), digits = 2)
+#t(elec_product[5:8])
+```
+
+```{r fig.width=8,fig.height=4}
+stack <- elec_product[5:7]
+max_y <- as.numeric(max(as.matrix(stack[1])))+as.numeric(max(as.matrix(stack[2])))+as.numeric(max(as.matrix(stack[3])))
+barplot(t(as.matrix(stack)),ylim=c(0,max_y*1.3),xlim=c(0,13),border=TRUE,col=c("gray","lightgray","gray"),xlab="월", ylab="전력량(kWh)",main="소내소비전력",axes=TRUE,panel.first = grid(nx = NA, ny = NULL))
+abline(h=0,ylim=c(0,13))
+```
+
+#### **3) 월간 유효발전량 분석**  
+```{r}
+temp_out <-elec_product[9:12]
+names(temp_out) <- c("중간부하","최대부하","경부하","합  계")
+kable(t(temp_out), digits = 0)
+
+#t(elec_product[9:12])
+``` 
+
+```{r fig.width=8,fig.height=4}
+stack <- elec_product[9:11]
+max_y <- as.numeric(max(as.matrix(stack[1])))+as.numeric(max(as.matrix(stack[2])))+as.numeric(max(as.matrix(stack[3])))
+barplot(t(as.matrix(stack)),ylim=c(0,max_y*1.3),xlim=c(0,13),border=TRUE,col=c("gray","lightgray","gray"),xlab="월", ylab="전력량(kWh)",main=" 유효 발전량",axes=TRUE,panel.first = grid(nx = NA, ny = NULL))
+abline(h=0,ylim=c(0,13))
+
+```
+
+#### **4) 월간 유효발전금액 분석**  
+```{r}
+temp_out <-elec_product[13:16]/1000000
+names(temp_out) <- c("중간부하","최대부하","경부하","합  계")
+kable(t(temp_out), digits = 0)
+
+#t(elec_product[13:16])
+``` 
+  
+
+```{r fig.width=8,fig.height=4}
+stack <- elec_product[13:15]/1000000
+max_y <- as.numeric(max(as.matrix(stack[1])))+as.numeric(max(as.matrix(stack[2])))+as.numeric(max(as.matrix(stack[3])))
+barplot(t(as.matrix(stack)),ylim=c(0,max_y*1.3),xlim=c(0,13),border=TRUE,col=c("gray","lightgray","gray"),xlab="월", ylab="전력금액(백만원)",main="전력생산금액",axes=TRUE,panel.first = grid(nx = NA, ny = NULL))
+abline(h=0,ylim=c(0,13))
+
+```
+
+
+
+## **6. 스팀생산량 분석**  
+#### **1) 월간 스팀생산량 분석** 
+```{r}
+temp_out <- elec_product[19:19]
+names(temp_out) <- c("스팀생산량(TON/월)")
+kable(t(temp_out), digits = 2)
+#t(elec_product[19:19])
+
+```
+
+```{r fig.width=8,fig.height=4}
+stack <- elec_product[19:19]
+max_y <- as.numeric(max(as.matrix(elec_product[19:19])))
+barplot(t(as.matrix(stack)),ylim=c(0,max_y*1.3),xlim=c(0,13),border=TRUE,col=c("gray","lightgray","gray"),xlab="월", ylab="스팀생산량(TON)",main="스팀 생산량",axes=TRUE,panel.first = grid(nx = NA, ny = NULL))
+abline(h=0,ylim=c(0,13))
+```
+  
+#### **2) 월간 스팀생산단가**  
+```{r}
+temp_out <- gt_energy_gen[8:8]
+names(temp_out) <- c("스팀단가(원/TON)")
+kable(t(temp_out), digits = 2)
+```
+  
+#### **3) 월간 스팀생산금액**    
+```{r}
+steam_product_price <- elec_product$steam_gen * gt_energy_gen$steam_unitprice
+elec_product <- cbind(elec_product,steam_product_price)
+
+temp_out <- elec_product[20:20]/1000000
+names(temp_out) <- c("스팀생산금액(백만원/월)")
+kable(t(temp_out), digits = 1)
+
+
+#t(elec_product[20:20])
+```
+
+```{r fig.width=8,fig.height=4}
+stack <- elec_product[20:20]/1000000
+max_y <- as.numeric(max(as.matrix(stack)))
+barplot(t(as.matrix(stack)),ylim=c(0,max_y*1.3),xlim=c(0,13),border=TRUE,col=c("gray","lightgray","gray"),xlab="월", ylab="스팀생산금액(백만원/월)",main="스팀 생산금액",axes=TRUE,panel.first = grid(nx = NA, ny = NULL))
+abline(h=0,ylim=c(0,13))
+```
+
+## **7. 연료사용량 분석**
+
+#### **1) 연료소비량 분석 (LPG)**
+```{r}
+fuel_consum <- gt_energy_gen$fuel_consumpt*(gt_energy_gen$saturday+gt_energy_gen$weekday+gt_energy_gen$sunday+gt_energy_gen$public_holiday)*(mi_time+mx_time+lt_time)
+
+elec_product <- cbind(elec_product,fuel_consum)
+
+temp_out <- elec_product[21:21]
+names(temp_out) <- c("연료소비량(TON/월)")
+kable(t(temp_out), digits = 1)
+
+#t(elec_product[21:21])
+```
+
+```{r fig.width=8,fig.height=4}
+stack <- elec_product[21:21]
+max_y <- as.numeric(max(as.matrix(stack)))
+barplot(t(as.matrix(stack)),ylim=c(0,max_y*1.3),xlim=c(0,13),border=TRUE,col=c("gray","lightgray","gray"),xlab="월", ylab="연료소비량(TON/월)",main="연료소비량",axes=TRUE,panel.first = grid(nx = NA, ny = NULL))
+abline(h=0,ylim=c(0,13))
+```
+
+#### **2) 연료단가 (LPG)**  
+```{r}
+temp_out <- gt_energy_gen[9:9]
+names(temp_out) <- c("연료단가(원/kg)")
+kable(t(temp_out), digits = 1)
+
+#t(gt_energy_gen[9:9])
+```
+  
+<br/>
+  
+#### **3) 연료사용금액 분석**  
+```{r}
+fuel_consum_price <- elec_product$fuel_consum*gt_energy_gen$fuel_unitprice*1000
+
+elec_product <- cbind(elec_product,fuel_consum_price)
+
+temp_out <- elec_product[22:22]/1000000
+names(temp_out) <- c("연료사용금액(백만원/월)")
+kable(t(temp_out), digits = 1)
+
+#t(elec_product[22:22])
+```
+
+```{r fig.width=8,fig.height=4}
+stack <- elec_product[22:22]/1000000
+max_y <- as.numeric(max(as.matrix(stack)))
+barplot(t(as.matrix(stack)),ylim=c(0,max_y*1.3),xlim=c(0,13),border=TRUE,col=c("gray","lightgray","gray"),xlab="월", ylab="연료소비금액(백만원)",main="연료소비금액",axes=TRUE,panel.first = grid(nx = NA, ny = NULL))
+abline(h=0,ylim=c(0,13))
+```
+  
+## **8. 에너지절감금액 분석**    
+
+```{r}
+total <- data.frame(t(colSums(elec_product)))
+energy_saving <- total$tot_elec_price + total$base_price_dec + total$elec_fund +total$steam_product_price - total$fuel_consum_price
+#print(total$tot_elec_price)
+#print(total$base_price_dec)
+#print(total$elec_fund)
+#print(total$steam_product_price)
+#print(total$fuel_consum_price)
+
+#energy_saving
+```
+
+
+  구    분                    |       금액 (백만원/년)                          |       비고
+------------------------------|-------------------------------------------------|--------------------
+   발전금액(1)                | `r round(total$tot_elec_price/1000000,1)`       |    
+   기본요금감축금액(2)        | `r round(total$base_price_dec/1000000,1)`       |    
+   전력기반요금감축(3)        | `r round(total$elec_fund/1000000,1)`            |
+   스팀생산금액(4)            | `r round(total$steam_product_price/1000000,1)`  |    
+   연료사용금액(5)            | `r round(total$fuel_consum_price/1000000,1)`    |    
+   에너지절가금액 합계(6)     | `r round(energy_saving/1000000,1)`              | (1)+(2)+(3)+(4)-(5)
+   
+<br/>   
