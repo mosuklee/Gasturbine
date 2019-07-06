@@ -35,15 +35,15 @@ import time
 # 고객 ID 및 PW를 입력합니다.  #
 ################################
 
-user_id = "1530578347"
-user_pw = "0066811"
+user_id = "0923375616"
+user_pw = "nexen2011"
 
 ############################################
 # i-Smart에서 검토할 검토년도를 입력합니다.#
 ############################################
 
-search_year = 2018
-jijum_no = "272"
+search_year = 2019
+jijum_no = "263"
 
 ####################
 # 기상청 지점번호  #
@@ -76,9 +76,7 @@ jijum_no = "272"
 #                                                                        의령군  : 263 
 
 
-```
-
-```{python echo=FALSE}
+#-----------------------------------------------------------------------------------------
 # i-SMART에 Log-In 
 
 # login 하고자 하는 login page를 url에 저장한다. 
@@ -101,9 +99,11 @@ element_pw.send_keys(user_pw)
 
 #버튼누르기
 browser.find_element_by_xpath('//*[@id="contents_main"]/div/form/div[1]/div[2]/input').click()
-```
 
-```{python echo=FALSE}
+
+#-----------------------------------------------------------------------------------------
+
+
 # 고객명을 추출합니다.
 
 url="https://pccs.kepco.co.kr/iSmart/pccs/usage/getGlobalUsageStats.do"
@@ -111,9 +111,11 @@ browser.get(url)
 pre_elem = browser.find_element_by_class_name("user_infor")
 client_name = pre_elem.find_element_by_tag_name("strong")
 client_name = client_name.text
-```
 
-```{python echo=FALSE}
+
+#-----------------------------------------------------------------------------------------
+
+
 # 고객정보를 추출합니다.
  
 url = "https://pccs.kepco.co.kr/iSmart/cm/login/readEquip.do?flag=AB" 
@@ -127,9 +129,10 @@ customer_info = pd.DataFrame(customer_info[0])
 customer_info.columns = ["remarks","info","1","2"]
 customer_info = customer_info.drop(["1", "2"], axis=1)
 
-```
 
-```{python echo=FALSE}
+#-----------------------------------------------------------------------------------------
+
+
 # i-smart에서 전력단가를 추출합니다.
 url = "https://pccs.kepco.co.kr/iSmart/pccs/simulation/readChargeSimulation.do" 
 browser.get(url)
@@ -141,9 +144,11 @@ unit_price = pd.DataFrame(unit_price[1])
 unit_price.columns = ["summer","intermid","winter","1","2","3","4","5","6","7","8","9"]
 unit_price = unit_price.drop(["1","2","3","4","5","6","7","8","9"], axis=1)
 unit_price = unit_price.drop([0,1,6], axis=0)
-```
 
-```{python echo=FALSE}
+
+#-----------------------------------------------------------------------------------------
+
+
 # 일 최대전력을 추출합니다.
 
 import urllib.parse
@@ -222,25 +227,26 @@ user_info[0][1] = search_year
 outputfile = './data/user_info.csv'
 user_info.to_csv(outputfile, encoding='UTF-8', index=False)
 
-```
+
+#-----------------------------------------------------------------------------------------
 
 
-```{python echo=FALSE}
 # 계약전력 및 발전가능량을 추출합니다.
 
 max_power = float(customer_info["info"][0][0:-2])
 exp_gen = data_15_pday_graph.max() - max_power*0.3
 #최대수요량 자료중 NaN으로 된 부분을 0으로 채워준다.(Error 발생대비)
 data_15_pday=data_15_pday.fillna(0)
-```
 
-```{python echo=FALSE}
+#-----------------------------------------------------------------------------------------
+
 #기술통계분석
 
 desc=data_15_pday_graph.describe()
-```
 
-```{python echo=FALSE}
+#-----------------------------------------------------------------------------------------
+
+
 # 일간전력 사용량을 추출합니다.
 
 i = 0
@@ -294,9 +300,11 @@ data_15_kwday = data_15_kwday.drop(data_15_kwday.index[31])
 data_15_kwday = data_15_kwday.apply(pd.to_numeric,errors='innore') # 데이터 frame의 object로 일부 저장된 부분을 숫자로 바꾼다. 
 # Data중 NaN으로 된 부분을 0으로 채워준다.(Error 발생대비)
 data_15_kwday=data_15_kwday.fillna(0)
-```
 
-```{python echo=FALSE}
+
+#-----------------------------------------------------------------------------------------
+
+
 #월간전력사용금액
 
 url = "https://pccs.kepco.co.kr/iSmart/pccs/charge/realCostInfoByMonthChart.do" 
@@ -318,9 +326,11 @@ data_mp = data_mp[1:2]
 data_mp.columns = ["1","2","3","4","5","6","7","8","9","10","11","12"]
 # Data가 NaN으로 된부분을 0으로 채워준다.
 data_mp=data_mp.fillna(0)
-```
 
-```{python echo=FALSE}
+
+#-----------------------------------------------------------------------------------------
+
+
 # 요금적용전력
 
 url = "https://pccs.kepco.co.kr/iSmart/pccs/amr/readCharge.do"    
@@ -343,9 +353,11 @@ data_mkw = data_mkw[2:3]
 data_mkw.columns = ["1","2","3","4","5","6","7","8","9","10","11","12"]
 # Data가 NaN으로 되어 있는 부분을 0으로 채워준다.(Error발생 대비)
 data_mkw=data_mkw.fillna(0)
-```
 
-```{python echo=FALSE}
+
+#-----------------------------------------------------------------------------------------
+
+
 # 일간전력량
 
 i = 0
@@ -385,9 +397,11 @@ elec_grade_kwday.columns = ["1","2","3","4","5","6","7","8","9","10","11","12"]
 # Data가 NaN으로 되어있는 값을 0으로 채워준다.(Error 발생대비)
 elec_grade_kwday=elec_grade_kwday.fillna(0)
 browser.quit()
-```
 
-```{python echo=FALSE}
+
+#-----------------------------------------------------------------------------------------
+
+
 # 기상자료를 추출합니다.
 
 jijum_no = "168_"+jijum_no
@@ -441,11 +455,24 @@ html = browser.page_source
 #가상브라우져에서 해당  Html파일을 추출한다.
 weather_data = pd.read_html(html,header=0)
 weather_data = pd.DataFrame(weather_data[1])
+
+# 기상자료가 현재까지 자료를 추출하므로 나머지 자료를 ""로 채워 Excel로 저장하는데 에러가 발생하지 않기위해서 보완하였다(20190706)
+total_rows = weather_data.shape[0]
+
+for i in range(total_rows,12) :
+    weather_data.loc[i,['지점']] = ""
+    weather_data.loc[i,['시간']] = ""
+    weather_data.loc[i,['평균기온(°C)']] = ""
+    weather_data.loc[i,['평균상대습도(%)']] = ""
+
 browser.quit()
 
-```
 
-```{python echo=FALSE}
+
+
+#-----------------------------------------------------------------------------------------
+
+
 # Excel파일로 저장합니다.
 
 import xlsxwriter
